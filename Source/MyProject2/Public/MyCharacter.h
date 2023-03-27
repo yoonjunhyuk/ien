@@ -40,6 +40,15 @@ public:
 	UPROPERTY(VisibleAnywhere, Category = Stat)
 	class UMyCharacterStatComponent* CharacterStat;
 
+	UPROPERTY(VisibleAnywhere, Category = Move)
+	float WalkSpeed = 400.0f;
+
+	UPROPERTY(VisibleAnywhere, Category = Move)
+	float RunSpeed = 800.0f;
+
+	UPROPERTY(VisibleAnywhere, Category = UI)
+	class UWidgetComponent* HPBarWidget;
+
 private:
 	void InputLookUp(float value);
 	void InputTurn(float value);
@@ -47,6 +56,7 @@ private:
 	void InputHorizontal(float value);
 	void InputJump();
 	void InputAttack();
+	void InputRun();
 
 	void AttackStartCombo();
 	void AttackEndCombo();

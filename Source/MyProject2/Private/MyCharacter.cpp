@@ -1,6 +1,8 @@
 #include "MyCharacter.h"
-#include"MyAnimInstance.h"
+#include "MyAnimInstance.h"
 #include "MyCharacterStatComponent.h"
+#include "Components/WidgetComponent.h"
+#include "MyCharacterWidget.h"
 
 // Sets default values
 AMyCharacter::AMyCharacter()
@@ -24,9 +26,11 @@ AMyCharacter::AMyCharacter()
 	SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SPRINGARM"));
 	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("CAMERA"));
 	CharacterStat = CreateDefaultSubobject<UMyCharacterStatComponent>(TEXT("CHARACTERSTAT"));
+	HPBarWidget = CreateDefaultSubobject<UWidgetComponent>(TEXT("HPBARWIDGET"));
 
 	SpringArm->SetupAttachment(GetCapsuleComponent());
 	Camera->SetupAttachment(SpringArm);
+	HPBarWidget->SetupAttachment(GetMesh());
 
 	SpringArm->TargetArmLength = 600.0f;
 	SpringArm->SetRelativeRotation(FRotator::ZeroRotator);
@@ -46,6 +50,15 @@ AMyCharacter::AMyCharacter()
 	AttackEndCombo();
 
 	GetCapsuleComponent()->SetCollisionProfileName(TEXT("MyCharacter"));
+
+	HPBarWidget->SetRelativeLocation(FVector(0.0f, 0.0f, 220.0f));
+	HPBarWidget->SetWidgetSpace(EWidgetSpace::Screen);
+	static ConstructorHelpers::FClassFinder<UUserWidget> UI_HP(TEXT("WidgetBlueprint'/Game/Blueprints/UI_HP.UI_HP_C'"));
+	if (UI_HP.Succeeded())
+	{
+		HPBarWidget->SetWidgetClass(UI_HP.Class);
+		HPBarWidget->SetDrawSize(FVector2D(150.0f, 50.0f));
+	}
 }
 
 // Called when the game starts or when spawned
@@ -53,13 +66,13 @@ void AMyCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 	
+	GetCharacterMovement()->MaxWalkSpeed = WalkSpeed;
 }
 
 // Called every frame
 void AMyCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-
 }
 
 void AMyCharacter::PostInitializeComponents()
@@ -86,6 +99,13 @@ void AMyCharacter::PostInitializeComponents()
 		MyAnim->SetDeadAnim();
 		SetActorEnableCollision(false);
 	});
+
+	auto CharacterWidget = Cast<UMyCharacterWidget>(HPBarWidget->GetUserWidgetObject());
+	MYCHECK(nullptr != CharacterWidget);
+	if (nullptr != CharacterWidget)
+	{
+		CharacterWidget->BindCharacterStat(CharacterStat);
+	}
 }
 
 // Called to bind functionality to input
@@ -95,6 +115,8 @@ void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 
 	PlayerInputComponent->BindAction(TEXT("Jump"), IE_Pressed, this, &AMyCharacter::InputJump);
 	PlayerInputComponent->BindAction(TEXT("Attack"), IE_Pressed, this, &AMyCharacter::InputAttack);
+	PlayerInputComponent->BindAction(TEXT("Run"), IE_Pressed, this, &AMyCharacter::InputRun);
+	PlayerInputComponent->BindAction(TEXT("Run"), IE_Released, this, &AMyCharacter::InputRun);
 
 	PlayerInputComponent->BindAxis(TEXT("Turn"), this, &AMyCharacter::InputTurn);
 	PlayerInputComponent->BindAxis(TEXT("LookUp"), this, &AMyCharacter::InputLookUp);
@@ -142,6 +164,20 @@ void AMyCharacter::InputAttack()
 		MyAnim->PlayAttackMontage();
 		MyAnim->JumpToAttackMontageSection(CurrentCombo);
 		IsAttacking = true;
+	}
+}
+
+void AMyCharacter::InputRun()
+{
+	auto Movement = GetCharacterMovement();
+
+	if (Movement->MaxWalkSpeed > WalkSpeed)
+	{
+		Movement->MaxWalkSpeed = WalkSpeed;
+	}
+	else
+	{
+		Movement->MaxWalkSpeed = RunSpeed;
 	}
 }
 
