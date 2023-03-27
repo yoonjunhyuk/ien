@@ -1,5 +1,6 @@
 #include "MyCharacter.h"
 #include"MyAnimInstance.h"
+#include "MyCharacterStatComponent.h"
 
 // Sets default values
 AMyCharacter::AMyCharacter()
@@ -22,6 +23,7 @@ AMyCharacter::AMyCharacter()
 
 	SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SPRINGARM"));
 	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("CAMERA"));
+	CharacterStat = CreateDefaultSubobject<UMyCharacterStatComponent>(TEXT("CHARACTERSTAT"));
 
 	SpringArm->SetupAttachment(GetCapsuleComponent());
 	Camera->SetupAttachment(SpringArm);
@@ -42,6 +44,8 @@ AMyCharacter::AMyCharacter()
 	IsAttacking = false;
 	MaxCombo = 3;
 	AttackEndCombo();
+
+	GetCapsuleComponent()->SetCollisionProfileName(TEXT("MyCharacter"));
 }
 
 // Called when the game starts or when spawned
@@ -73,6 +77,14 @@ void AMyCharacter::PostInitializeComponents()
 			AttackStartCombo();
 			MyAnim->JumpToAttackMontageSection(CurrentCombo);
 		}
+	});
+
+	MyAnim->OnAttackHitCheck.AddUObject(this, &AMyCharacter::AttackCheck);
+
+	CharacterStat->OnHPIsZero.AddLambda([this]() -> void {
+		UE_LOG(LogTemp, Warning, TEXT("OnHPIsZero"));
+		MyAnim->SetDeadAnim();
+		SetActorEnableCollision(false);
 	});
 }
 
@@ -151,4 +163,39 @@ void AMyCharacter::AttackEndCombo()
 	IsComboInputOn = false;
 	CanNextCombo = false;
 	CurrentCombo = 0;
+}
+
+void AMyCharacter::AttackCheck()
+{
+	FHitResult HitResult;
+	FCollisionQueryParams Params(NAME_None, false, this);
+	bool bResult = GetWorld()->SweepSingleByChannel(
+		HitResult,
+		GetActorLocation(),
+		GetActorLocation() + GetActorForwardVector() * 200.0f,
+		FQuat::Identity,
+		ECollisionChannel::ECC_GameTraceChannel2,
+		FCollisionShape::MakeSphere(50.0f),
+		Params);
+
+	if (bResult)
+	{
+		if (HitResult.Actor.IsValid())
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Hit Actor Name : %s"), *HitResult.Actor->GetName());
+
+			FDamageEvent DamageEvent;
+			HitResult.Actor->TakeDamage(CharacterStat->GetAttack(), DamageEvent, GetController(), this);
+		}
+	}
+}
+
+float AMyCharacter::TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser)
+{
+	float FinalDamage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+	UE_LOG(LogTemp, Warning, TEXT("Actor : %s took Damage : %f"), *GetName(), FinalDamage);
+
+	CharacterStat->SetDamage(FinalDamage);
+
+	return FinalDamage;
 }
